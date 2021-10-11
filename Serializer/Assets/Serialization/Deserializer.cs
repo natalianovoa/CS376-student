@@ -34,7 +34,7 @@ namespace Assets.Serialization
         {
             this.reader = reader;
         }
-        
+
         /// <summary>
         /// The stream from which we are reading.
         /// </summary>
@@ -56,7 +56,7 @@ namespace Assets.Serialization
                 var peek = reader.Peek();
                 if (peek < 0)
                     throw new EndOfStreamException();
-                return (char) peek;
+                return (char)peek;
             }
         }
 
@@ -95,8 +95,8 @@ namespace Assets.Serialization
                 var p = reader.Peek();
                 if (p < 0)
                     return false;
-                var c = (char) p;
-                return char.IsLetterOrDigit(c) || c == '.' || c == '-' ;
+                var c = (char)p;
+                return char.IsLetterOrDigit(c) || c == '.' || c == '-';
             }
 
             var b = new StringBuilder();

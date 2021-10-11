@@ -21,30 +21,30 @@ namespace Assets.Serialization
             switch (o)
             {
                 case null:
-                    throw new NotImplementedException("Fill me in");
+                    Write("null");
                     break;
 
                 case int i:
-                    throw new NotImplementedException("Fill me in");
+                    Write(i);
                     break;
 
                 case float f:
-                    throw new NotImplementedException("Fill me in");
+                    Write(f);
                     break;
 
                 // BUG: this doesn't handle strings that themselves contain quote marks
                 // but that doesn't really matter for an assignment like this, so I'm not
                 // going to confuse the reader by complicating the code to escape the strings.
                 case string s:
-                    throw new NotImplementedException("Fill me in");
+                    Write("\"" + s + "\"");
                     break;
 
                 case bool b:
-                    throw new NotImplementedException("Fill me in");
+                    Write(b);
                     break;
 
                 case IList list:
-                    throw new NotImplementedException("Fill me in");
+                    WriteList(list);
                     break;
 
                 default:
@@ -62,9 +62,33 @@ namespace Assets.Serialization
         /// If it hasn't then output #id { type: "typename", field: value ... }
         /// </summary>
         /// <param name="o">Object to serialize</param>
+        Dictionary<object, int> ids = new Dictionary<object, int>();
+
         private void WriteComplexObject(object o)
         {
-            throw new NotImplementedException("Fill me in");
+            if (ids.ContainsKey(o))
+            {
+                Write("#");
+                Write(ids[o]);
+            }
+            else
+            {
+                int id = ids.Count + 1;
+                ids.Add(o, id);
+
+                Action name = () =>
+                    {
+
+                        WriteField("type", o.GetType().Name, true);
+                        var pairs = Utilities.SerializedFields(o);
+                        //for each pair in Utilities.fields
+                        foreach (var entry in pairs)
+                            WriteField(entry.Key, entry.Value, false);
+                    };
+                Write("#");
+                Write(id);
+                WriteBracketedExpression("{", name, "}");
+            }
         }
     }
 
@@ -107,14 +131,7 @@ namespace Assets.Serialization
             }
         }
 
-        /// <summary>
-        /// Called when the next character is a #.  Read the object id of the object and return the
-        /// object.  If that object id has already been read, return the object previously returned.
-        /// Otherwise, there will be a { } expression after the object id.  Read it, create the object
-        /// it represents, and return it.
-        /// </summary>
-        /// <param name="enclosingId">Object id of the object this expression appears inside of, if any.</param>
-        /// <returns>The object referred to by this #id expression.</returns>
+        IDictionary<int, object> ids = new Dictionary<int, object>();
         private object ReadComplexObject(int enclosingId)
         {
             GetChar();  // Swallow the #
@@ -122,7 +139,8 @@ namespace Assets.Serialization
             SkipWhitespace();
 
             // You've got the id # of the object.  Are we done now?
-            throw new NotImplementedException("Fill me in");
+            if (ids.ContainsKey(id))
+                return ids[id];
 
             // Assuming we aren't done, let's check to make sure there's a { next
             SkipWhitespace();
@@ -144,14 +162,15 @@ namespace Assets.Serialization
                     $"Expected a type name (a string) in 'type: ...' expression for object id {id}, but instead got {typeName}");
 
             // Great!  Now what?
-            throw new NotImplementedException("Fill me in");
+            object obj = Utilities.MakeInstance(type);
+            ids.Add(id, obj);
 
             // Read the fields until we run out of them
             while (!End && PeekChar != '}')
             {
                 var (field, value) = ReadField(id);
                 // We've got a field and a value.  Now what?
-                throw new NotImplementedException("Fill me in");
+                Utilities.SetFieldByName(obj, field, value);
             }
 
             if (End)
@@ -160,7 +179,8 @@ namespace Assets.Serialization
             GetChar();  // Swallow close bracket
 
             // We're done.  Now what?
-            throw new NotImplementedException("Fill me in");
+            return obj;
+          
         }
     }
 }

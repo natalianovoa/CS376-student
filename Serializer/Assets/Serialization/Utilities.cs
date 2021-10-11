@@ -18,7 +18,7 @@ namespace Assets.Serialization
         {
             // Crawl up the type hierarchy, starting with o's type
             for (var type = o.GetType(); type != null && type != typeof(object); type = type.BaseType)
-                // Find all the fields declared in that particular type
+            // Find all the fields declared in that particular type
             {
                 var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
                 foreach (var f in fields)
@@ -76,7 +76,7 @@ namespace Assets.Serialization
             var iList = list as List<object>;
             if (iList == null)
                 throw new ArgumentException($"Cannot convert {list} into type List<{typeof(T).Name}>");
-            return iList.Select<object,T>(ConvertElement).ToList();
+            return iList.Select<object, T>(ConvertElement).ToList();
         }
 
         /// <summary>
@@ -88,12 +88,12 @@ namespace Assets.Serialization
         public static object MakeInstance(string typeName)
         {
             // Get the type object in this DLL with the specified name
-            var t = Assembly.GetExecutingAssembly().GetType("Assets.FakeUnity."+typeName);
+            var t = Assembly.GetExecutingAssembly().GetType("Assets.FakeUnity." + typeName);
             if (t == null)
                 throw new ArgumentException($"Can't find a type named {typeName}");
             // Call its default constructor.  Sorry this is such a mess; C#'s API for reflection isn't beautiful.
             return t.InvokeMember(null,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.CreateInstance, 
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.CreateInstance,
                 null, null, null);
         }
     }
