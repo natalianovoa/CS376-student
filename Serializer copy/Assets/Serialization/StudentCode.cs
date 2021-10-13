@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using UnityEngine;
 
 //
 // This is where you put your code.  There are two sections, one for members to add to the Serializer class,
@@ -12,10 +13,6 @@ namespace Assets.Serialization
     // The partial keyword just means we're adding these three methods to the code in Serializer.cs
     public partial class Serializer
     {
-        /// Dictionary used for keeping track of complex objects. Has objects as keys and the ints as values.
-        Dictionary<object, int> object2num = new Dictionary<object, int>();
-
-
         /// <summary>
         /// Print out the serialization data for the specified object.
         /// </summary>
@@ -24,8 +21,6 @@ namespace Assets.Serialization
         {
             switch (o)
             {
-                /// Using the Write function and its overloads for most cases to print the serialization
-                /// data. 
                 case null:
                     Write("null");
                     break;
@@ -42,7 +37,7 @@ namespace Assets.Serialization
                 // but that doesn't really matter for an assignment like this, so I'm not
                 // going to confuse the reader by complicating the code to escape the strings.
                 case string s:
-                    Write("\"" + s + "\"");
+                    Write($"\"{s}\"");
                     break;
 
                 case bool b:
@@ -56,7 +51,6 @@ namespace Assets.Serialization
                 default:
                     if (o.GetType().IsValueType)
                         throw new Exception($"Trying to write an unsupported value type: {o.GetType().Name}");
-
                     WriteComplexObject(o);
                     break;
             }
@@ -68,63 +62,46 @@ namespace Assets.Serialization
         /// If it hasn't then output #id { type: "typename", field: value ... }
         /// </summary>
         /// <param name="o">Object to serialize</param>
+        int id = -1;
+        Dictionary<object, int> dict = new Dictionary<object, int>();
         private void WriteComplexObject(object o)
         {
-            /// DO DICTIONARY STUFF HERE (CHECK IF ALREADY SERIALIZED, IF SO, THEN JUST PRINT # AND NUMBER. IF NOT,
-            /// THEN ASSIGN SERIAL NUMBER, PRINT # AND NUMBER, THEN USE A HELPER PROC (NEED TO WRITE ONE) THAT
-            /// WRITES THE TYPE AND OTHER FIELDS (TRANSFORM, COMPONENTS, X, Y, ETC.) IN A BRACKETED EXP
-            /// Should use the WriteField and WriteBracketedExpression procedures extensively
-
-            /// important if statement that determines whether we've encountered this object or not.
-            if (object2num.Count != 0 && object2num.ContainsKey(o))
+            if (dict.ContainsKey(o))
             {
-                /// if we already have the object in the dictionary, we are here, just writing # and the serial number
-                /// value associated with the object in the dictionary
-
-                Write("#");
-                Write(object2num[o]);
+                Write($"#{dict[o]}");
             }
             else
             {
-                /// if we are here, then we need to add the object in the dictionary and print out the 
-                /// relevant information (type, fields including components)
-
-                /// add the object to the dictionary with the serial number equal to the current # of entries
-                /// in the dictionary
-                int serial_num = object2num.Count;
-                object2num.Add(o, serial_num);
-
-                /// prints the # and serial number
-                Write("#");
-                Write(serial_num);
-
-                WriteBracketedExpression("{",
-                    () => {
-                        WriteField("type", o.GetType().Name, true);
-                        IEnumerable<KeyValuePair<string, object>> fieldsSS = Utilities.SerializedFields(o);
-                        foreach (KeyValuePair<string, object> curr_field in fieldsSS)
-                        {
-                            WriteField(curr_field.Key, curr_field.Value, false);
-                        }
+                id++;
+                dict.Add(o, id);
+                Write($"#{id} {{ type: \"{o.GetType().Name}\", ");
+                IEnumerable<KeyValuePair<string, object>> fields = Utilities.SerializedFields(o);
+                int count = 0;
+                foreach (var data in fields)
+                {
+                    count++;
+                }
+                int i = 0;
+                foreach (var data in fields)
+                {
+                    //TODO
+                    i++;
+                    Write($"{data.Key}: ");
+                    WriteObject(data.Value);
+                    if (count > i)
+                    {
+                        Write($",");
                     }
-                , "}");
+                    //Debug.Log($"{data.Key}: {data.Value}");
+                }
+                Write($"}}");
             }
-
-        }
-
-        private void WriteTypeAndFields(object o)
-        {
-            return;
         }
     }
 
     // The partial keyword just means we're adding these three methods to the code in Deserializer.cs
     public partial class Deserializer
     {
-
-        /// Dictionary used for keeping track of complex objects. Has ints as keys and the objects as values.
-        Dictionary<int, object> num2object = new Dictionary<int, object>();
-
         /// <summary>
         /// Read whatever data object is next in the stream
         /// </summary>
@@ -169,18 +146,16 @@ namespace Assets.Serialization
         /// </summary>
         /// <param name="enclosingId">Object id of the object this expression appears inside of, if any.</param>
         /// <returns>The object referred to by this #id expression.</returns>
+        Dictionary<int, object> readObj = new Dictionary<int, object>();
         private object ReadComplexObject(int enclosingId)
         {
             GetChar();  // Swallow the #
             var id = (int)ReadNumber(enclosingId);
             SkipWhitespace();
-
             // You've got the id # of the object.  Are we done now?
-            /// Let's check if the id # is logged in the dictionary currently. If it is, then we can just return
-            /// that object. Otherwise, we need to construct the object, add it to the dictionary, and return it.
-            if (num2object.Count > 0 && num2object.ContainsKey(id))
+            if (readObj.ContainsKey(id))
             {
-                return num2object[id];
+                return readObj[id];
             }
 
             // Assuming we aren't done, let's check to make sure there's a { next
@@ -203,32 +178,30 @@ namespace Assets.Serialization
                     $"Expected a type name (a string) in 'type: ...' expression for object id {id}, but instead got {typeName}");
 
             // Great!  Now what?
-            /// Now we create a new object with the given type.
-            object neo_obj = Utilities.MakeInstance(type);
-            /// also add it into the dictionary so that we don't continually do this
-            /// for each time we run into this object.
-            num2object.Add(id, neo_obj);
+
+            object inst = Utilities.MakeInstance(type);
 
             // Read the fields until we run out of them
             while (!End && PeekChar != '}')
             {
                 var (field, value) = ReadField(id);
-                // We've got a field and a value.  Now what?
-                /// Now we update the field in neo_obj to match the corresponding value we've read in.
-                /// We also need to update the dictionary so that the object has this updated field.
-                Utilities.SetFieldByName(neo_obj, field, value);
-                num2object.Remove(id);
-                num2object.Add(id, neo_obj);
+                Utilities.SetFieldByName(inst, field, value);
+                if (readObj.ContainsKey(id))
+                {
+                    readObj[id] = inst;
+                }
+                else
+                {
+                    readObj.Add(id, inst);
+                }
             }
-
             if (End)
                 throw new EndOfStreamException($"Stream ended in the middle of {"{ }"} expression for id #{id}");
 
             GetChar();  // Swallow close bracket
 
             // We're done.  Now what?
-            /// return the object we just read and update the dictionary entry
-            return neo_obj;
+            return inst;
         }
     }
 }
